@@ -25,7 +25,7 @@ class GameType(PokerEnum):
 
 
 class Game(PokerEnum):
-    HOLDEM = "Hold'em", 'HOLDEM'
+    HOLDEM = u"Hold'em", 'HOLDEM',
     OMAHA = 'Omaha',
     OHILO = 'Omaha Hi/Lo',
     RAZZ = 'Razz',
@@ -33,9 +33,9 @@ class Game(PokerEnum):
 
 
 class Limit(PokerEnum):
-    NL = 'NL', 'No limit'
-    PL = 'PL', 'Pot limit'
-    FL = 'FL', 'Fixed limit', 'Limit'
+    NL = 'NL', 'No limit', u'No Limit'
+    PL = 'PL', 'Pot limit', u'Pot Limit'
+    FL = 'FL', 'Fixed limit', u'Limit'
 
 
 class TourFormat(PokerEnum):
