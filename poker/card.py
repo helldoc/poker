@@ -12,10 +12,10 @@ __all__ = ['Suit', 'Rank', 'Card', 'FACE_RANKS', 'BROADWAY_RANKS']
 class Suit(PokerEnum):
     __order__ = 'CLUBS DIAMONDS HEARTS SPADES'
 
-    CLUBS = '♣', 'c', 'clubs'
-    DIAMONDS = '♦', 'd', 'diamonds'
-    HEARTS = '♥', 'h', 'hearts'
-    SPADES = '♠', 's', 'spades'
+    CLUBS = 'c', '♣', 'clubs'
+    DIAMONDS = 'd', '♦', 'diamonds'
+    HEARTS = 'h', '♥', 'hearts'
+    SPADES = 's', '♠', 'spades'
     # Can't make alias with redefined value property
     # because of a bug in stdlib enum module (line 162)
     # C = '♣', 'c', 'C', 'clubs'

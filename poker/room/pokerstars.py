@@ -43,7 +43,23 @@ class _Street(hh._BaseStreet):
             actions.append(hh._PlayerAction(*action))
         self.actions = tuple(actions) if actions else None
 
-    def _parse_uncalled(self, line):
+    @staticmethod
+    def _parse_preflop_actions(actionlines):
+        actions = []
+        for line in actionlines:
+            if line.startswith('Uncalled bet'):
+                action = _Street._parse_uncalled(line)
+            elif ':' in line:
+                action = _Street._parse_player_action(line)
+            else:
+                raise RuntimeError("bad action line: " + line)
+
+            actions.append(hh._PlayerAction(*action))
+        result = tuple(actions) if actions else None
+        return result
+
+    @staticmethod
+    def _parse_uncalled(line):
         first_paren_index = line.find('(')
         second_paren_index = line.find(')')
         amount = line[first_paren_index + 1:second_paren_index]
@@ -67,7 +83,8 @@ class _Street(hh._BaseStreet):
         name = line[:colon_index]
         return name, Action.MUCK, None
 
-    def _parse_player_action(self, line):
+    @staticmethod
+    def _parse_player_action(line):
         name, _, action = line.partition(': ')
         action, _, amount = action.partition(' ')
         amount, _, _ = amount.partition(' ')
@@ -410,7 +427,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
     def _parse_preflop(self):
         start = self._sections[0] + 3
         stop = self._sections[1]
-        self.preflop_actions = tuple(self._splitted[start:stop])
+        self.preflop_actions = _Street._parse_preflop_actions(self._splitted[start:stop])
 
     def _parse_flop(self):
         try:
@@ -428,7 +445,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
             stop = self._splitted.index('', start)
             street_actions = self._splitted[start:stop]
             street_obj = _Street(street_actions)
-            setattr(self, street.lower(),
+            setattr(self, "{}_street".format(street.lower()),
                     street_obj if street_actions else None)
         except ValueError:
             setattr(self, street, None)
@@ -446,8 +463,8 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
         if not boardline.startswith('Board'):
             return
         cards = self._board_re.findall(boardline)
-        self.turn_card = Card(unicode(cards[3])) if len(cards) > 3 else None
-        self.river_card = Card(unicode(cards[4])) if len(cards) > 4 else None
+        self.turn = Card(unicode(cards[3])) if len(cards) > 3 else None
+        self.river = Card(unicode(cards[4])) if len(cards) > 4 else None
 
     def _parse_winners(self):
         winners = set()
