@@ -95,7 +95,7 @@ class _BaseStreet(object):
         self.pot = None
         self.actions = None
         self.cards = None
-        self._parse_cards(flop[0])
+        self._parse_cards(unicode(flop[0]))
         self._parse_actions(flop[1:])
         self._all_combinations = itertools.combinations(self.cards, 2)
 

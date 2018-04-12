@@ -47,6 +47,7 @@ class _Street(hh._BaseStreet):
         first_paren_index = line.find('(')
         second_paren_index = line.find(')')
         amount = line[first_paren_index + 1:second_paren_index]
+        amount = re.sub("[^\d\.]*", "", amount)
         name_start_index = line.find('to ') + 3
         name = line[name_start_index:]
         return name, Action.RETURN, Decimal(amount)
@@ -57,6 +58,7 @@ class _Street(hh._BaseStreet):
         second_space_index = line.find(' ', first_space_index + 1)
         third_space_index = line.find(' ', second_space_index + 1)
         amount = line[second_space_index + 1:third_space_index]
+        amount = re.sub("[^\d\.]*", "", amount)
         self.pot = Decimal(amount)
         return name, Action.WIN, self.pot
 
@@ -69,6 +71,8 @@ class _Street(hh._BaseStreet):
         name, _, action = line.partition(': ')
         action, _, amount = action.partition(' ')
         amount, _, _ = amount.partition(' ')
+        #amount can be with $, deleting it
+        amount = re.sub("[^\d\.]*", "", amount)
 
         if amount:
             return name, Action(action), Decimal(amount)
@@ -297,12 +301,12 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
 
     #_header_re = re.compile(r"""^\s+PokerStars\s+Hand\s+\#(?P<ident>\d*):\s+(?P<game>[^\s]*)\s+(?P<limit>No Limit|Pot Limit|Limit)\s+\(\$(?P<cash_sb>\d+(\.\d+)?)/\$(?P<cash_bb>\d+(\.\d+)?)(\s+(?P<cash_currency>\S+))\)\s+-\s+(?P<date>[0-9 /:]*\s+ET)""", re.VERBOSE)
 
-    _table_re = re.compile(r"^Table '(.*)' (\d+)-max Seat #(?P<button>\d+) is the button")
+    _table_re = re.compile(r"^Table\s+'(.*)'\s+(\d+)-max\s+Seat\s*#(?P<button>\d+) is the button")
     _seat_re = re.compile(r"^Seat (?P<seat>\d+): (?P<name>.+?) \(\$?(?P<stack>\d+(\.\d+)?) in chips\)")  # noqa
     _hero_re = re.compile(r"^Dealt to (?P<hero_name>.+?) \[(..) (..)\]")
-    _pot_re = re.compile(r"^Total pot (\d+(?:\.\d+)?) .*\| Rake (\d+(?:\.\d+)?)")
+    _pot_re = re.compile(r"^Total\s+pot\s+[$|€|£](\d+(?:\.\d+)?)\s+\|\s+Rake\s+[$|€|£](\d+(?:\.\d+)?)")
     _winner_re = re.compile(r"^Seat (\d+): (.+?) collected \((\d+(?:\.\d+)?)\)")
-    _showdown_re = re.compile(r"^Seat (\d+): (.+?) showed \[.+?\] and won")
+    _showdown_re = re.compile(r"^\s*Seat (\d+): (.+?) (?P<position>\(?.*?\)?)\s?showed (?P<cards>\[.+?\]) and won \([$|€|£]([\d\.]*)\) with (?P<combination>.*?), (?P<combination_value>.*)")
     _ante_re = re.compile(r".*posts the ante (\d+(?:\.\d+)?)")
     _board_re = re.compile(r"(?<=[\[ ])(..)(?=[\] ])")
 
@@ -310,7 +314,6 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
         # sections[0] is before HOLE CARDS
         # sections[-1] is before SUMMARY
         self._split_raw()
-        self._logger.debug(self._splitted[0])
 
         match = self._header_re.match(self._splitted[0])
 
@@ -340,10 +343,8 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
             self.extra['money_type'] = MoneyType.REAL
             self.currency = Currency(currency)
 
-        self._logger.debug(type(match.group('game')))
-        _game = match.group('game')
-        self.game = Game(_game)
-        self.limit = Limit(match.group('limit'))
+        self.game = Game(unicode(match.group('game')))
+        self.limit = Limit(unicode(match.group('limit')))
 
         self._parse_date(match.group('date'))
 
@@ -354,10 +355,13 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
         if not self.header_parsed:
             self.parse_header()
 
+        for i in self._splitted:
+            print([i])
+
         self._parse_table()
         self._parse_players()
         self._parse_button()
-        self._parse_hero()
+        #self._parse_hero()
         self._parse_preflop()
         self._parse_flop()
         self._parse_street('turn')
@@ -385,7 +389,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
             index = int(match.group('seat')) - 1
             self.players[index] = hh._Player(
                 name=match.group('name'),
-                stack=int(match.group('stack')),
+                stack=float(match.group('stack')),
                 seat=int(match.group('seat')),
                 combo=None
             )
@@ -420,9 +424,12 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
 
     def _parse_street(self, street):
         try:
-            start = self._splitted.index(street.upper()) + 2
+            start = self._splitted.index(street.upper()) + 1
             stop = self._splitted.index('', start)
             street_actions = self._splitted[start:stop]
+            street_obj = _Street(street_actions)
+            setattr(self, "{}_obj".format(street.lower()),
+                    street_obj if street_actions else None)
             setattr(self, "{}_actions".format(street.lower()),
                     tuple(street_actions) if street_actions else None)
         except ValueError:
@@ -435,15 +442,15 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
     def _parse_pot(self):
         potline = self._splitted[self._sections[-1] + 2]
         match = self._pot_re.match(potline)
-        self.total_pot = int(match.group(1))
+        self.total_pot = Decimal(match.group(1))
 
     def _parse_board(self):
         boardline = self._splitted[self._sections[-1] + 3]
         if not boardline.startswith('Board'):
             return
         cards = self._board_re.findall(boardline)
-        self.turn = Card(cards[3]) if len(cards) > 3 else None
-        self.river = Card(cards[4]) if len(cards) > 4 else None
+        self.turn = Card(unicode(cards[3])) if len(cards) > 3 else None
+        self.river = Card(unicode(cards[4])) if len(cards) > 4 else None
 
     def _parse_winners(self):
         winners = set()
