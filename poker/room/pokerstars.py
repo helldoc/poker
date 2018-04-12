@@ -428,13 +428,10 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
             stop = self._splitted.index('', start)
             street_actions = self._splitted[start:stop]
             street_obj = _Street(street_actions)
-            setattr(self, "{}_obj".format(street.lower()),
+            setattr(self, street.lower(),
                     street_obj if street_actions else None)
-            setattr(self, "{}_actions".format(street.lower()),
-                    tuple(street_actions) if street_actions else None)
         except ValueError:
             setattr(self, street, None)
-            setattr(self, '{}_actions'.format(street.lower()), None)
 
     def _parse_showdown(self):
         self.show_down = 'SHOW DOWN' in self._splitted
@@ -449,8 +446,8 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
         if not boardline.startswith('Board'):
             return
         cards = self._board_re.findall(boardline)
-        self.turn = Card(unicode(cards[3])) if len(cards) > 3 else None
-        self.river = Card(unicode(cards[4])) if len(cards) > 4 else None
+        self.turn_card = Card(unicode(cards[3])) if len(cards) > 3 else None
+        self.river_card = Card(unicode(cards[4])) if len(cards) > 4 else None
 
     def _parse_winners(self):
         winners = set()
