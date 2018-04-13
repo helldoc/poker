@@ -13,7 +13,7 @@ from zope.interface import implementer
 from .. import handhistory as hh
 from ..card import Card
 from ..hand import Combo
-from ..constants import Limit, Game, GameType, Currency, Action, MoneyType
+from ..constants import Limit, Game, GameType, Currency, Action, MoneyType, Position
 
 
 __all__ = ['PokerStarsHandHistory', 'PokerStarsTournamentHandHistory', 'Notes']
@@ -295,6 +295,9 @@ class PokerStarsTournamentHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHa
 
         self.winners = tuple(winners)
 
+
+#TODO:  """gapiropo has timed out while disconnected"""
+
 @implementer(hh.IHandHistory)
 class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory):
     """Parses PokerStars Zoom hands."""
@@ -378,6 +381,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
         self._parse_table()
         self._parse_players()
         self._parse_button()
+        self._parse_position()
         #self._parse_hero()
         self._parse_preflop()
         self._parse_flop()
@@ -408,12 +412,34 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
                 name=match.group('name'),
                 stack=float(match.group('stack')),
                 seat=int(match.group('seat')),
-                combo=None
+                combo=None,
+                position=None
             )
 
     def _parse_button(self):
-        button_seat = int(self._table_match.group('button'))
-        self.button = self.players[button_seat - 1]
+        self.button_seat = int(self._table_match.group('button'))
+        self.button = self.players[self.button_seat - 1]
+
+    def _parse_position(self):
+        button_index = self.button_seat - 1
+
+        shift_seat = lambda a: (button_index + a) % self.max_players
+
+        if self.max_players == 2:
+            self.players[shift_seat(0)].position = Position.BTN
+            self.players[shift_seat(1)].position = Position.BB
+            return
+        # players 2,3 = 0, 4,5,6 = 1 , 7,8,9 = 2
+        last_position = int((self.max_players - 1) / 3)
+        for i in range(self.max_players - last_position):
+            self.players[shift_seat(i)].position = Position(i)
+
+        if last_position == 2:
+            self.players[shift_seat(self.max_players - 2)].position = Position.HJ
+            last_position -= 1
+
+        if last_position == 1:
+            self.players[shift_seat(self.max_players - 1)].position = Position.CO
 
     def _parse_hero(self):
         hole_cards_line = self._splitted[self._sections[0] + 2]
@@ -445,8 +471,8 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
             stop = self._splitted.index('', start)
             street_actions = self._splitted[start:stop]
             street_obj = _Street(street_actions)
-            setattr(self, "{}_street".format(street.lower()),
-                    street_obj if street_actions else None)
+            setattr(self, "{}_actions".format(street.lower()),
+                    street_obj.actions if street_actions else None)
         except ValueError:
             setattr(self, street, None)
 

@@ -76,13 +76,13 @@ class Action(PokerEnum):
 class Position(PokerEnum):
     __order__ = 'UTG UTG1 UTG2 UTG3 UTG4 CO BTN SB BB'
 
-    UTG = 'UTG', 'under the gun'
-    UTG1 = 'UTG1', 'utg+1', 'utg + 1'
-    UTG2 = 'UTG2', 'utg+2', 'utg + 2'
-    UTG3 = 'UTG3', 'utg+3', 'utg + 3'
-    UTG4 = 'UTG4', 'utg+4', 'utg + 4'
+    UTG = 'UTG', 'under the gun', 3
+    UTG1 = 'UTG1', 'utg+1', 'utg + 1', 4
+    UTG2 = 'UTG2', 'utg+2', 'utg + 2', 5
+    UTG3 = 'UTG3', 'utg+3', 'utg + 3', 6
+    UTG4 = 'UTG4', 'utg+4', 'utg + 4', 7
     HJ = 'HJ', 'hijack', 'utg+5', 'utg + 5'
     CO = 'CO', 'cutoff', 'cut off'
-    BTN = 'BTN', 'bu', 'button'
-    SB = 'SB', 'small blind'
-    BB = 'BB', 'big blind'
+    BTN = 'BTN', 'bu', 'button', 0
+    SB = 'SB', 'small blind', 1
+    BB = 'BB', 'big blind' , 2

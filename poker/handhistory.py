@@ -22,7 +22,7 @@ class _Player(object):
     stack = attr.ib()
     seat = attr.ib()
     combo = attr.ib()
-
+    position = attr.ib()
 
 @attr.s(slots=True)
 class _PlayerAction(object):
@@ -183,7 +183,7 @@ class _BaseHandHistory(object):
     def _init_seats(self, player_num):
         players = []
         for seat in range(1, player_num + 1):
-            players.append(_Player(name='Empty Seat %s' % seat, stack=0, seat=seat, combo=None))
+            players.append(_Player(name='Empty Seat %s' % seat, stack=0, seat=seat, combo=None, position=None))
 
         return players
 
