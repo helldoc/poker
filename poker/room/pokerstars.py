@@ -66,7 +66,7 @@ class _Street(hh._BaseStreet):
         amount = re.sub("[^\d\.]*", "", amount)
         name_start_index = line.find('to ') + 3
         name = line[name_start_index:]
-        return name, Action.RETURN, Decimal(amount)
+        return name, Action.RETURN, float(amount)
 
     def _parse_collected(self, line):
         first_space_index = line.find(' ')
@@ -75,7 +75,7 @@ class _Street(hh._BaseStreet):
         third_space_index = line.find(' ', second_space_index + 1)
         amount = line[second_space_index + 1:third_space_index]
         amount = re.sub("[^\d\.]*", "", amount)
-        self.pot = Decimal(amount)
+        self.pot = float(amount)
         return name, Action.WIN, self.pot
 
     def _parse_muck(self, line):
@@ -92,7 +92,7 @@ class _Street(hh._BaseStreet):
         amount = re.sub("[^\d\.]*", "", amount)
 
         if amount:
-            return name, Action(action), Decimal(amount)
+            return name, Action(action), float(amount)
         else:
             return name, Action(action), None
 
@@ -150,8 +150,8 @@ class PokerStarsTournamentHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHa
         # and cash blind captures because a cash game play money blind looks exactly
         # like a tournament blind
 
-        self.sb = Decimal(match.group('sb') or match.group('cash_sb'))
-        self.bb = Decimal(match.group('bb') or match.group('cash_bb'))
+        self.sb = float(match.group('sb') or match.group('cash_sb'))
+        self.bb = float(match.group('bb') or match.group('cash_bb'))
 
         if match.group('tournament_ident'):
             self.game_type = GameType.TOUR
@@ -159,8 +159,8 @@ class PokerStarsTournamentHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHa
             self.tournament_level = match.group('tournament_level')
 
             currency = match.group('currency')
-            self.buyin = Decimal(match.group('buyin') or 0)
-            self.rake = Decimal(match.group('rake') or 0)
+            self.buyin = float(match.group('buyin') or 0)
+            self.rake = float(match.group('rake') or 0)
         else:
             self.game_type = GameType.CASH
             self.tournament_ident = None
@@ -224,7 +224,8 @@ class PokerStarsTournamentHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHa
                 name=match.group('name'),
                 stack=int(match.group('stack')),
                 seat=int(match.group('seat')),
-                combo=None
+                combo=None,
+                position=None
             )
 
     def _parse_button(self):
@@ -301,7 +302,8 @@ class PokerStarsTournamentHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHa
 @implementer(hh.IHandHistory)
 class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory):
     """Parses PokerStars Zoom hands."""
-    _logger = logging.getLogger('application.PokerStarsHandHistory')
+    _logger = logging.getLogger('application.poker.room.PokerStarsHandHistory')
+    _logger.setLevel(logging.DEBUG)
     _DATE_FORMAT = '%Y/%m/%d %H:%M:%S ET'
     _TZ = pytz.timezone('US/Eastern')  # ET
     _split_re = re.compile(r" ?\*\*\* ?\n?|\n")
@@ -324,16 +326,20 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
     _table_re = re.compile(r"^Table\s+'(.*)'\s+(\d+)-max\s+Seat\s*#(?P<button>\d+) is the button")
     _seat_re = re.compile(r"^Seat (?P<seat>\d+): (?P<name>.+?) \(\$?(?P<stack>\d+(\.\d+)?) in chips\)")  # noqa
     _hero_re = re.compile(r"^Dealt to (?P<hero_name>.+?) \[(..) (..)\]")
-    _pot_re = re.compile(r"^Total\s+pot\s+[$|€|£](\d+(?:\.\d+)?)\s+\|\s+Rake\s+[$|€|£](\d+(?:\.\d+)?)")
+    _pot_re = re.compile(r"^Total\s+pot\s+[$|€|£](?P<total_pot>\d+(?:\.\d+)?)\s+\|\s+Rake\s+[$|€|£](?P<rake>\d+(?:\.\d+)?)")
     _winner_re = re.compile(r"^Seat (\d+): (.+?) collected \((\d+(?:\.\d+)?)\)")
-    _showdown_re = re.compile(r"^\s*Seat (\d+): (.+?) (?P<position>\(?.*?\)?)\s?showed (?P<cards>\[.+?\]) and won \([$|€|£]([\d\.]*)\) with (?P<combination>.*?), (?P<combination_value>.*)")
+    _showdown_re = re.compile(r"^Seat (?P<seat>\d+): (?P<name>.+?) (?P<position>\(?.*?\)?)\s?showed \[(?P<cards>.+?)\] and (?P<status>.+?) (?:\([$|€|£](?P<gain>[\d\.]*)\) )?with (?P<combination>.*?)(?:, and (?P<status_second>.+?) (?:\([$|€|£](?P<gain_second>[\d\.]*)\) )?with (?P<combination_second>.*))?$")
     _ante_re = re.compile(r".*posts the ante (\d+(?:\.\d+)?)")
     _board_re = re.compile(r"(?<=[\[ ])(..)(?=[\] ])")
-
+    _summary_fold_re = re.compile(r"^Seat (?P<seat>\d+): (?P<name>.+?) (?P<position>\(?.*?\)?)\s?folded (?P<stage>on the (?P<street>.+)|before Flop)")
+    _summary_mucked_re = re.compile(r"^Seat (?P<seat>\d+): (?P<name>.+?) (?P<position>\(?.*?\)?)\s?mucked")
     def parse_header(self):
         # sections[0] is before HOLE CARDS
         # sections[-1] is before SUMMARY
         self._split_raw()
+
+        for i in self._splitted:
+            self._logger.debug([i])
 
         match = self._header_re.match(self._splitted[0])
 
@@ -344,8 +350,8 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
         # and cash blind captures because a cash game play money blind looks exactly
         # like a tournament blind
 
-        self.sb = Decimal(match.group('cash_sb') or Decimal(match.group('sb')))
-        self.bb = Decimal(match.group('cash_bb') or Decimal(match.group('bb')))
+        self.sb = float(match.group('cash_sb') or float(match.group('sb')))
+        self.bb = float(match.group('cash_bb') or float(match.group('bb')))
 
         self.game_type = GameType.CASH
         self.tournament_ident = None
@@ -353,8 +359,6 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
         currency = match.group('cash_currency')
         self.buyin = None
         self.rake = None
-
-
 
         if not currency:
             self.extra['money_type'] = MoneyType.PLAY
@@ -367,7 +371,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
         self.limit = Limit(unicode(match.group('limit')))
 
         self._parse_date(match.group('date'))
-
+        self._check_twice_hand()
         self.header_parsed = True
 
     def parse(self):
@@ -375,13 +379,10 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
         if not self.header_parsed:
             self.parse_header()
 
-        for i in self._splitted:
-            print([i])
-
         self._parse_table()
         self._parse_players()
         self._parse_button()
-        self._parse_position()
+
         #self._parse_hero()
         self._parse_preflop()
         self._parse_flop()
@@ -391,7 +392,9 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
         self._parse_pot()
         self._parse_board()
         self._parse_winners()
-
+        self._init_advanced_seat()
+        self._parse_summary()
+        self._parse_position()
         self._del_split_vars()
         self.parsed = True
 
@@ -419,27 +422,6 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
     def _parse_button(self):
         self.button_seat = int(self._table_match.group('button'))
         self.button = self.players[self.button_seat - 1]
-
-    def _parse_position(self):
-        button_index = self.button_seat - 1
-
-        shift_seat = lambda a: (button_index + a) % self.max_players
-
-        if self.max_players == 2:
-            self.players[shift_seat(0)].position = Position.BTN
-            self.players[shift_seat(1)].position = Position.BB
-            return
-        # players 2,3 = 0, 4,5,6 = 1 , 7,8,9 = 2
-        last_position = int((self.max_players - 1) / 3)
-        for i in range(self.max_players - last_position):
-            self.players[shift_seat(i)].position = Position(i)
-
-        if last_position == 2:
-            self.players[shift_seat(self.max_players - 2)].position = Position.HJ
-            last_position -= 1
-
-        if last_position == 1:
-            self.players[shift_seat(self.max_players - 1)].position = Position.CO
 
     def _parse_hero(self):
         hole_cards_line = self._splitted[self._sections[0] + 2]
@@ -482,8 +464,8 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
     def _parse_pot(self):
         potline = self._splitted[self._sections[-1] + 2]
         match = self._pot_re.match(potline)
-        self.total_pot = Decimal(match.group(1))
-
+        self.total_pot = float(match.group("total_pot"))
+        self.rake = float(match.group("rake"))
     def _parse_board(self):
         boardline = self._splitted[self._sections[-1] + 3]
         if not boardline.startswith('Board'):
@@ -499,12 +481,114 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
             if not self.show_down and "collected" in line:
                 match = self._winner_re.match(line)
                 winners.add(match.group(2))
-            elif self.show_down and "won" in line:
+            elif self.show_down and "showed" in line:
                 match = self._showdown_re.match(line)
-                winners.add(match.group(2))
-
+                name = match.group("name")
+                status = match.group("status")
+                seat = int(match.group("seat"))
+                self.players[seat - 1].combo = match.group("combination")
+                if status == "win":
+                    winners.add(name)
         self.winners = tuple(winners)
 
+    def _init_advanced_seat(self):
+        self.players_advanced = []
+        for i in range(self.max_players):
+            self.players_advanced.append({"name": None})
+
+
+    def _parse_summary(self):
+        start = self._splitted.index('SUMMARY') + 1
+
+        for line in self._splitted[start:]:
+            name, seat = 0, 0
+            stage, combination, action = "", "", ""
+            hand = []
+            hand_group, hand_rank = None, None
+            is_winner = False
+            if "showed" in line:
+                action = "showed"
+                match = self._showdown_re.match(line)
+                name = match.group("name")
+                status = match.group("status")
+                seat = int(match.group("seat"))
+                card_line = match.group("cards")
+                cards = card_line.split(" ")
+                for card_str in cards:
+                    hand.append(card_str)
+                stage = "showdown"
+                combo = match.group("combination")
+                hand_group, hand_rank = self._parse_poker_stars_combination(combo)
+                if status == "won":
+                    is_winner = True
+            elif "folded" in line:
+                action = "folded"
+                match = self._summary_fold_re.match(line)
+                name = match.group("name")
+                seat = int(match.group("seat"))
+                if match.group("stage") == "before Flop":
+                    stage = "preflop"
+                else:
+                    stage = match.group("street").lower()
+            elif "mucked" in line:
+                action = "mucked"
+                match = self._summary_fold_re.match(line)
+                name = match.group("name")
+                seat = int(match.group("seat"))
+                stage = "showdown"
+            else:
+                continue
+            self.players_advanced[seat - 1] = {
+                "name": name,
+                "stage": stage,
+                "is_winner": is_winner,
+                "hand": hand,
+                "action": action,
+                "hand_group": hand_group,
+                "hand_rank": hand_rank
+            }
+
+    def _parse_poker_stars_combination(self, combination):
+        arr = combination.split(", ")
+        if len(arr) == 1:
+            arr = combination.split(" of ")
+        group = arr[0]
+        rank = arr[1]
+        return group, rank
+
+    def _parse_position(self):
+        button_index = self.button_seat - 1
+
+        shift_seat = lambda a: (button_index + a) % self.max_players
+
+        if self.max_players == 2:
+            self.players_advanced[shift_seat(0)]["position"] = Position.BTN.val
+            self.players_advanced[shift_seat(1)]["position"] = Position.BB.val
+            self.players[shift_seat(0)].position = Position.BTN
+            self.players[shift_seat(1)].position = Position.BB
+            return
+        # players 2,3 = 0, 4,5,6 = 1 , 7,8,9 = 2
+        last_position = int((self.max_players - 1) / 3)
+        for i in range(self.max_players - last_position):
+            self.players_advanced[shift_seat(i)]["position"] = Position(i).val
+            self.players[shift_seat(i)].position = Position(i)
+
+
+        if last_position == 2:
+            self.players_advanced[shift_seat(self.max_players - 2)]["position"] = Position.HJ.val
+            self.players[shift_seat(self.max_players - 2)].position = Position.HJ
+
+            last_position -= 1
+
+        if last_position == 1:
+            self.players_advanced[shift_seat(self.max_players - 1)]["position"] = Position.CO.val
+            self.players[shift_seat(self.max_players - 1)].position = Position.CO
+
+    def _check_twice_hand(self):
+        start = self._splitted.index('SUMMARY') + 1
+        self.hand_run_twice = False
+        if "Hand was run twice" in self._splitted[start:]:
+            self.hand_run_twice = True
 
 @attr.s(slots=True)
 class _Label(object):
