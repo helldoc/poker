@@ -79,6 +79,9 @@ class PokerEnum(_OrderableMixin, enum.Enum):
         """The first value of the Enum member."""
         return self._value_[0]
 
+    def val_at(self, index):
+        """The value of the Enum member at index."""
+        return self._value_[index]
 
 class _ReprMixin(object):
     def __str__(self):

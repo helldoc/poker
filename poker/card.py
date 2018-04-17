@@ -24,19 +24,19 @@ class Suit(PokerEnum):
 class Rank(PokerEnum):
     __order__ = 'DEUCE THREE FOUR FIVE SIX SEVEN EIGHT NINE TEN JACK QUEEN KING ACE'
 
-    DEUCE = '2', 2
-    THREE = '3', 3
-    FOUR = '4', 4
-    FIVE = '5', 5
-    SIX = '6', 6
-    SEVEN = '7', 7
-    EIGHT = '8', 8
-    NINE = '9', 9
-    TEN = 'T', 10
-    JACK = 'J',
-    QUEEN = 'Q',
-    KING = 'K',
-    ACE = 'A', 1
+    DEUCE = '2', "Two", "Twos", "Deuce", 2
+    THREE = '3', "Three", "Threes", 3
+    FOUR = '4', "Four", "Fours", 4
+    FIVE = '5', "Five", "Fives", 5
+    SIX = '6', "Six", "Sixes", 6
+    SEVEN = '7', "Seven", "Sevens", 7
+    EIGHT = '8', "Eight", "Eights", 8
+    NINE = '9', "Nine", "Nines", 9
+    TEN = 'T', "Ten", "Tens", 10
+    JACK = 'J', "Jack", "Jacks"
+    QUEEN = 'Q', "Queen", "Queens"
+    KING = 'K', "King", "Kings"
+    ACE = 'A', "Ace", "Aces", 1
 
     @classmethod
     def difference(cls, first, second):
