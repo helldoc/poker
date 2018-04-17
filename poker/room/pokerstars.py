@@ -11,10 +11,10 @@ import pytz
 from pathlib import Path
 from zope.interface import implementer
 from .. import handhistory as hh
-from ..card import Card
+from ..card import Card, Rank
 from ..hand import Combo
 from ..constants import Limit, Game, GameType, Currency, Action, MoneyType, Position
-
+from ..combination import CombinationGroup, Combination
 
 __all__ = ['PokerStarsHandHistory', 'PokerStarsTournamentHandHistory', 'Notes']
 
@@ -504,7 +504,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
             name, seat = 0, 0
             stage, combination, action = "", "", ""
             hand = []
-            hand_group, hand_rank = None, None
+            hand_group, hand_combination = None, None
             is_winner = False
             if "showed" in line:
                 action = "showed"
@@ -517,8 +517,10 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
                 for card_str in cards:
                     hand.append(card_str)
                 stage = "showdown"
-                combo = match.group("combination")
-                hand_group, hand_rank = self._parse_poker_stars_combination(combo)
+                combination_line = match.group("combination")
+                combination = self._parse_poker_stars_combination(combination_line)
+                hand_group = combination.group.val
+                hand_combination = combination.to_string()
                 if status == "won":
                     is_winner = True
             elif "folded" in line:
@@ -545,16 +547,39 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
                 "hand": hand,
                 "action": action,
                 "hand_group": hand_group,
-                "hand_rank": hand_rank
+                "hand_combination": hand_combination
             }
 
-    def _parse_poker_stars_combination(self, combination):
-        arr = combination.split(", ")
-        if len(arr) == 1:
-            arr = combination.split(" of ")
-        group = arr[0]
-        rank = arr[1]
-        return group, rank
+    def _parse_poker_stars_combination(self, combination_line):
+        group, rank, sec_rank = None, None, None
+        if combination_line.startswith("a pair of"):
+            group = CombinationGroup.PAIR
+            rank = Rank(combination_line.split(" of ")[1])
+        elif combination_line.startswith("high card"):
+            group = CombinationGroup.HIGH_CARD
+            rank = Rank(combination_line.split(" card ")[1])
+        else:
+            group_name, rank_line = combination_line.split(", ")
+            # Remove article
+            if group_name.startswith("a "):
+                group_name = group_name[2:]
+            group = CombinationGroup(unicode(group_name))
+            if group in (CombinationGroup.STRAIGHT, CombinationGroup.STRAIGHT_FLUSH):
+                rank_name = rank_line.split(" to ")[1]
+                rank = Rank(rank_name)
+            elif group == CombinationGroup.FULL_HOUSE:
+                rank_name, sec_rank_name = rank_line.split(" full of ")
+                rank = Rank(rank_name)
+                sec_rank = Rank(sec_rank_name)
+            elif group == CombinationGroup.TWO_PAIR:
+                rank_name, sec_rank_name = rank_line.split(" and ")
+                rank = Rank(rank_name)
+                sec_rank = Rank(sec_rank_name)
+            else:
+                rank_name = rank_line.split(" ")[0]
+                rank = Rank(rank_name)
+        result = Combination(group, rank, sec_rank)
+        return result
 
     def _parse_position(self):
         button_index = self.button_seat - 1

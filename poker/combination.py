@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+from __future__ import unicode_literals
 from ._common import PokerEnum, _ReprMixin
 from .card import Rank
 
@@ -27,11 +27,11 @@ class Combination(_ReprMixin):
     def __new__(cls, group, rank, second_rank):
 
         self = super(Combination, cls).__new__(cls)
-        self.group = CombinationGroup(group)
-        self.rank = Rank(rank)
+        self.group = group
+        self.rank = rank
 
         if second_rank and self.group in cls._two_rank_combination:
-            self.second_rank = Rank(second_rank)
+            self.second_rank = second_rank
         elif second_rank:
             raise ValueError("Combination {!r} is one rank combination, but second_rank set {!r}".format(self.group.val, str(second_rank)))
         elif self.group in cls._two_rank_combination:
