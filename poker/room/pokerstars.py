@@ -546,7 +546,6 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
                 "is_winner": is_winner,
                 "hand": hand,
                 "action": action,
-                "hand_group": hand_group,
                 "hand_combination": hand_combination
             }
 
