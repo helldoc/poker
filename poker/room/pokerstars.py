@@ -541,7 +541,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
             else:
                 continue
             self.players_advanced[seat - 1] = {
-                "name": name,
+                "name": self.players[seat-1].name,
                 "stage": stage,
                 "is_winner": is_winner,
                 "hand": hand,
