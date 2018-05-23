@@ -327,7 +327,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
     _seat_re = re.compile(r"^Seat (?P<seat>\d+): (?P<name>.+?) \(\$?(?P<stack>\d+(\.\d+)?) in chips\)")  # noqa
     _hero_re = re.compile(r"^Dealt to (?P<hero_name>.+?) \[(..) (..)\]")
     _pot_re = re.compile(r"^Total\s+pot\s+[$|€|£](?P<total_pot>\d+(?:\.\d+)?)\s+\|\s+Rake\s+[$|€|£](?P<rake>\d+(?:\.\d+)?)")
-    _winner_re = re.compile(r"^Seat (\d+): (.+?) collected \((\d+(?:\.\d+)?)\)")
+    _winner_re = re.compile(r"^Seat (?P<seat>\d+): (?P<name>.+?) (?P<position>\(?.*?\)?)collected (?:\([$|€|£](?P<gain>[\d\.]*)\))")
     _showdown_re = re.compile(r"^Seat (?P<seat>\d+): (?P<name>.+?) (?P<position>\(?.*?\)?)\s?showed \[(?P<cards>.+?)\] and (?P<status>.+?) (?:\([$|€|£](?P<gain>[\d\.]*)\) )?with (?P<combination>.*?)(?:, and (?P<status_second>.+?) (?:\([$|€|£](?P<gain_second>[\d\.]*)\) )?with (?P<combination_second>.*))?$")
     _ante_re = re.compile(r".*posts the ante (\d+(?:\.\d+)?)")
     _board_re = re.compile(r"(?<=[\[ ])(..)(?=[\] ])")
@@ -372,6 +372,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
 
         self._parse_date(match.group('date'))
         self._check_twice_hand()
+        self._check_splitted_pot()
         self.header_parsed = True
 
     def parse(self):
@@ -480,7 +481,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
         for line in self._splitted[start:]:
             if not self.show_down and "collected" in line:
                 match = self._winner_re.match(line)
-                winners.add(match.group(2))
+                winners.add(match.group("name"))
             elif self.show_down and "showed" in line:
                 match = self._showdown_re.match(line)
                 name = match.group("name")
@@ -499,7 +500,6 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
 
     def _parse_summary(self):
         start = self._splitted.index('SUMMARY') + 1
-
         for line in self._splitted[start:]:
             name, seat = 0, 0
             stage, combination, action = "", "", ""
@@ -613,6 +613,13 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
         self.hand_run_twice = False
         if "Hand was run twice" in self._splitted[start:]:
             self.hand_run_twice = True
+
+
+    def _check_splitted_pot(self):
+        start = self._splitted.index('SUMMARY') + 1
+        self.splitted_pot = False
+        if "Main pot" in self._splitted[start:]:
+            self.splitted_pot = True
 
 @attr.s(slots=True)
 class _Label(object):
