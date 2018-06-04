@@ -137,6 +137,13 @@ class PokerStarsTournamentHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHa
                         -\s+.+?\s+                                    # localized date
                         \[(?P<date>.+?)\]                             # ET date
                         """, re.VERBOSE)
+    _header_re = re.compile("""^(?P<hand_info>.*): (?P<tournament_info>.*), (?P<game_info>.*) - (?P<level_info>.*) - (?P<date_info>.*)""")
+    _hand_info_re = re.compile("""^PokerStars\s+Hand\s+\#(?P<id>\d+)""")
+    _tournament_info_re = re.compile("""Tournament\s+\#(?P<tournament_id>\d+)""")
+    _game_info_re = re.compile("""(?P<game_in>(?P<freeroll>Freeroll)|(?:[$|€|£]?(?P<buyin>[\d\.]*)\+[$|€|£]?(?P<rake>[\d\.]*))) (?P<currency>[A-Z]+) (?P<game>.+?) (?P<limit>(?:Pot\s+|No\s+|)Limit)\s+""")
+    # _game_info_re = re.compile("""((?P<freeroll>Freeroll)|(\$?(?P<buyin>\d+(\.\d+)?)(\+\$?(?P<rake>\d+(\.\d+)?))?(\s+(?P<currency>[A-Z]+))?))\s+)?(?P<game>.+?)\s+(?P<limit>(?:Pot\s+|No\s+|)Limit)\s+""")
+    _level_info_re = re.compile("""Level (?P<tournament_level>[IV]*) \((?:[$|€|£]?(?P<sb>[\d\.]*))/(?:[$|€|£]?(?P<bb>[\d\.]*))(\s+(?P<currency>\S+))?\)""")
+    _date_info_re = re.compile("""(?P<date>[0-9 /:]*\s+ET)""")
     _table_re = re.compile(r"^Table '(.*)' (\d+)-max Seat #(?P<button>\d+) is the button")
     _seat_re = re.compile(r"^Seat (?P<seat>\d+): (?P<name>.+?) \(\$?(?P<stack>\d+(\.\d+)?) in chips\)")  # noqa
     _hero_re = re.compile(r"^Dealt to (?P<hero_name>.+?) \[(..) (..)\]")
@@ -150,12 +157,23 @@ class PokerStarsTournamentHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHa
         # sections[0] is before HOLE CARDS
         # sections[-1] is before SUMMARY
         self._split_raw()
+        info_line = self._splitted[0]
+
+        hand_info, info_line = info_line.split(': ')
+        tournament_info, info_line = info_line.split(", ")
+        game_info, level_info, date_info = info_line.split(" - ")
+
+        self._parse_hand_info(hand_info)
+        self._parse_tournament_info(tournament_info)
+        self._parse_game_info(game_info)
+        self._parse_level_info(level_info)
+        self._parse_date_info(date_info)
 
         match = self._header_re.match(self._splitted[0])
 
         self.extra = dict()
         self.ident = match.group('ident')
-
+        self.parse_header_info()
         # We cannot use the knowledege of the game type to pick between the blind
         # and cash blind captures because a cash game play money blind looks exactly
         # like a tournament blind
@@ -195,6 +213,25 @@ class PokerStarsTournamentHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHa
         self._parse_date(match.group('date'))
 
         self.header_parsed = True
+
+    def _parse_hand_info(self, line):
+        print (line)
+
+    def _parse_date_info(self, line):
+        print (line)
+
+    def _parse_level_info(self, line):
+        print (line)
+
+    def _parse_tournament_info(self, line):
+        print (line)
+
+    def _parse_game_info(self, line):
+        print (line)
+
+    def _parse_table_info(self, line):
+        print (line)
+
 
     def parse(self):
         """Parses the body of the hand history, but first parse header if not yet parsed."""
