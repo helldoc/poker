@@ -31,6 +31,7 @@ class _Street(hh._BaseStreet):
                 action = self._parse_uncalled(line)
             elif 'collected' in line:
                 action = self._parse_collected(line)
+                self.pot = action[2]
             elif "doesn't show hand" in line:
                 action = self._parse_muck(line)
             elif ' said, "' in line:  # skip chat lines
@@ -45,10 +46,15 @@ class _Street(hh._BaseStreet):
 
     @staticmethod
     def _parse_preflop_actions(actionlines):
+
         actions = []
         for line in actionlines:
             if line.startswith('Uncalled bet'):
                 action = _Street._parse_uncalled(line)
+            elif "collected" in line:
+                action = _Street._parse_collected(line)
+            elif "doesn't show hand" in line:
+                action = _Street._parse_muck(line)
             elif ':' in line:
                 action = _Street._parse_player_action(line)
             else:
@@ -68,17 +74,21 @@ class _Street(hh._BaseStreet):
         name = line[name_start_index:]
         return name, Action.RETURN, float(amount)
 
-    def _parse_collected(self, line):
+    @staticmethod
+    def _parse_collected(line):
         first_space_index = line.find(' ')
         name = line[:first_space_index]
         second_space_index = line.find(' ', first_space_index + 1)
         third_space_index = line.find(' ', second_space_index + 1)
         amount = line[second_space_index + 1:third_space_index]
         amount = re.sub("[^\d\.]*", "", amount)
-        self.pot = float(amount)
-        return name, Action.WIN, self.pot
+        pot = float(amount)
+        # Must set _Street pot after call this function with self
+        # self.pot = pot
+        return name, Action.WIN, pot
 
-    def _parse_muck(self, line):
+    @staticmethod
+    def _parse_muck(line):
         colon_index = line.find(':')
         name = line[:colon_index]
         return name, Action.MUCK, None
@@ -298,6 +308,8 @@ class PokerStarsTournamentHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHa
 
 
 #TODO:  """gapiropo has timed out while disconnected"""
+#TODO: 2 seat table has button + SB player and BB player
+#TODO: no winner detection in 2 seat tables "Seat 2: frabbxd (big blind) collected ($598.50)"
 
 @implementer(hh.IHandHistory)
 class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory):
@@ -434,7 +446,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
             self.button = hero
 
     def _parse_preflop(self):
-        start = self._sections[0] + 3
+        start = self._sections[0] + 2
         stop = self._sections[1]
         self.preflop_actions = _Street._parse_preflop_actions(self._splitted[start:stop])
 
@@ -534,7 +546,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
                     stage = match.group("street").lower()
             elif "mucked" in line:
                 action = "mucked"
-                match = self._summary_fold_re.match(line)
+                match = self._summary_mucked_re.match(line)
                 name = match.group("name")
                 seat = int(match.group("seat"))
                 stage = "showdown"

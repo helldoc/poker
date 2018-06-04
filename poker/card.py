@@ -24,7 +24,7 @@ class Suit(PokerEnum):
 class Rank(PokerEnum):
     __order__ = 'DEUCE THREE FOUR FIVE SIX SEVEN EIGHT NINE TEN JACK QUEEN KING ACE'
 
-    DEUCE = '2', "Two", "Twos", "Deuce", 2
+    DEUCE = '2', "Two", "Twos", "Deuce", "Deuces", 2
     THREE = '3', "Three", "Threes", 3
     FOUR = '4', "Four", "Fours", 4
     FIVE = '5', "Five", "Fives", 5
