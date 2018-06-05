@@ -85,4 +85,5 @@ class Position(PokerEnum):
     CO = 'CO', 'cutoff', 'cut off'
     BTN = 'BTN', 'bu', 'button', 0
     SB = 'SB', 'small blind', 1
-    BB = 'BB', 'big blind' , 2
+    BB = 'BB', 'big blind', 2
+    EMP = 'EMP', 'empty'

@@ -13,7 +13,7 @@ import pytz
 from zope.interface import Interface, Attribute
 from cached_property import cached_property
 from .card import Rank
-
+from .constants import Position
 
 @attr.s(slots=True)
 class _Player(object):
@@ -183,7 +183,7 @@ class _BaseHandHistory(object):
     def _init_seats(self, player_num):
         players = []
         for seat in range(1, player_num + 1):
-            players.append(_Player(name='Empty Seat %s' % seat, stack=0, seat=seat, combo=None, position=None))
+            players.append(_Player(name='Empty Seat %s' % seat, stack=0, seat=seat, combo=None, position=Position(u"empty")))
 
         return players
 
