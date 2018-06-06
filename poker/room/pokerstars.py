@@ -57,6 +57,10 @@ class _Street(hh._BaseStreet):
                 action = _Street._parse_muck(line)
             elif ':' in line:
                 action = _Street._parse_player_action(line)
+            elif 'is sitting out' in line:
+                pass
+            elif 'has returned' in line:
+                pass
             else:
                 raise RuntimeError("bad action line: " + line)
 
@@ -108,9 +112,11 @@ class _Street(hh._BaseStreet):
 
 
 #TODO:  """gapiropo has timed out while disconnected"""
+#TODO: bad action line: gabriel2903 has returned
 #TODO: 2 seat table has button + SB player and BB player
 #TODO: no winner detection in 2 seat tables "Seat 2: frabbxd (big blind) collected ($598.50)"
-
+#TODO: parsing section before HOLECARD
+#TODO: handling connection (sitting out, returned etc) and chat messages, now there is just A LOT OF SHITTY STUBS
 @implementer(hh.IHandHistory)
 class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory):
     """Parses PokerStars Zoom hands."""
@@ -121,7 +127,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
     _split_re = re.compile(r" ?\*\*\* ?\n?|\n")
     _header_re = re.compile(r"""
                         ^\s*PokerStars\s+
-                        Hand\s+\#(?P<ident>\d*):\s+
+                        Hand\s+\#(?P<id>\d*):\s+
                         (?P<game>[^\s]*)\s+
                         (?P<limit>No\ Limit|Pot\ Limit|Limit)\s+
                         \(
@@ -156,22 +162,17 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
         match = self._header_re.match(self._splitted[0])
 
         self.extra = dict()
-        self.ident = match.group('ident')
+        self.id = match.group('id')
 
         # We cannot use the knowledege of the game type to pick between the blind
         # and cash blind captures because a cash game play money blind looks exactly
         # like a tournament blind
 
-        self.sb = float(match.group('cash_sb') or float(match.group('sb')))
-        self.bb = float(match.group('cash_bb') or float(match.group('bb')))
+        self.sb = float(match.group('cash_sb'))
+        self.bb = float(match.group('cash_bb'))
 
         self.game_type = GameType.CASH
-        self.tournament_ident = None
-        self.tournament_level = None
         currency = match.group('cash_currency')
-        self.buyin = None
-        self.rake = None
-
         if not currency:
             self.extra['money_type'] = MoneyType.PLAY
             self.currency = None
@@ -281,7 +282,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
         potline = self._splitted[self._sections[-1] + 2]
         match = self._pot_re.match(potline)
         self.total_pot = float(match.group("total_pot"))
-        self.rake = float(match.group("rake"))
+        self.pot_rake = float(match.group("rake"))
 
     def _parse_board(self):
         boardline = self._splitted[self._sections[-1] + 3]
@@ -399,12 +400,12 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
 
     def _shift_seat(self, index):
         button_index = self.button_seat - 1
-        seat = (button_index + index) % self.max_players
+        seat = (button_index + index) % self.active_players
         if self.players[seat].name.startswith("Empty Seat"):
             result = self._shift_seat(seat + 1)
         else:
             result = seat
-        self._logger.debug("shifting seat, index %i to seat %i (%i players playing)", index, result, self.active_players)
+            self._logger.debug("shifting seat, index %i to seat %i (%i/%i players playing)", index, result, self.active_players, self.max_players)
         return result
 
     def _parse_position(self):
@@ -455,7 +456,7 @@ class PokerStarsTournamentHandHistory(PokerStarsHandHistory):
     _header_re = re.compile("""^(?P<hand_info>.*): (?P<tournament_info>.*), (?P<game_info>.*) - (?P<level_info>.*) - (?P<date_info>.*)""")
     _hand_info_re = re.compile("""^PokerStars\s+Hand\s+\#(?P<id>\d+)""")
     _tournament_info_re = re.compile("""Tournament\s+\#(?P<tournament_id>\d+)""")
-    _game_info_re = re.compile("""(?P<game_in>(?P<freeroll>Freeroll)|(?:[$|€|£]?(?P<buyin>[\d\.]*)\+[$|€|£]?(?P<rake>[\d\.]*))) (?P<currency>[A-Z]+) (?P<game>.+?) (?P<limit>(?:Pot\s+|No\s+|)Limit)""")
+    _game_info_re = re.compile("""(?P<game_in>Freeroll|(?:[$|€|£]?(?P<buyin>[\d\.]*)\+[$|€|£]?(?P<rake>[\d\.]*)) (?P<currency>[A-Z]+)) (?P<game>.+?) (?P<limit>(?:Pot\s+|No\s+|)Limit)""")
     # _game_info_re = re.compile("""((?P<freeroll>Freeroll)|(\$?(?P<buyin>\d+(\.\d+)?)(\+\$?(?P<rake>\d+(\.\d+)?))?(\s+(?P<currency>[A-Z]+))?))\s+)?(?P<game>.+?)\s+(?P<limit>(?:Pot\s+|No\s+|)Limit)\s+""")
     _level_info_re = re.compile("""Level (?P<tournament_level>[IV]*) \((?:[$|€|£]?(?P<sb>[\d\.]*))/(?:[$|€|£]?(?P<bb>[\d\.]*))(\s+(?P<currency>\S+))?\)""")
     _date_info_re = re.compile("""(?P<date>[0-9 /:]*\s+ET)""")
@@ -464,7 +465,7 @@ class PokerStarsTournamentHandHistory(PokerStarsHandHistory):
     # _hero_re = re.compile(r"^Dealt to (?P<hero_name>.+?) \[(..) (..)\]")
     _pot_re = re.compile(r"^Total pot (?P<total_pot>[\.\d]*) \| Rake (?P<rake>[\.\d]*)")
     # _winner_re = re.compile(r"^Seat (\d+): (.+?) collected \((\d+(?:\.\d+)?)\)")
-    _showdown_re = re.compile(r"^Seat (\d+): (.+?) showed \[.+?\] and won")
+    # _showdown_re = re.compile(r"^Seat (\d+): (.+?) showed \[.+?\] and won")
     _ante_re = re.compile(r".*posts the ante (\d+(?:\.\d+)?)")
     _board_re = re.compile(r"(?<=[\[ ])(..)(?=[\] ])")
 
@@ -487,11 +488,12 @@ class PokerStarsTournamentHandHistory(PokerStarsHandHistory):
         self._parse_date(match.group("date_info"))
         self.hand_run_twice = False
         self.splitted_pot = False
+        self.tournament_ended = False
         self.header_parsed = True
 
     def _parse_hand_info(self, line):
         match = self._hand_info_re.match(line)
-        self.ident = match.group('id')
+        self.id = match.group('id')
 
     def _parse_level_info(self, line):
         match = self._level_info_re.match(line)
@@ -513,7 +515,7 @@ class PokerStarsTournamentHandHistory(PokerStarsHandHistory):
         currency = match.group('currency')
         self.buyin = float(match.group('buyin') or 0)
         self.rake = float(match.group('rake') or 0)
-        if match.group('freeroll') and not currency:
+        if match.group('game_in') == 'Freeroll' and not currency:
             currency = 'USD'
         if not currency:
             self.extra['money_type'] = MoneyType.PLAY
@@ -525,6 +527,15 @@ class PokerStarsTournamentHandHistory(PokerStarsHandHistory):
     def _parse_table_info(self, line):
         print (line)
 
+    def _check_tournament_ended(self):
+        start = self._splitted.index('SUMMARY') + 1
+        for line in self._splitted[start:]:
+            if "wins the tournament" in line:
+                self.tournament_ended = True
+
+    def parse(self):
+        self._check_tournament_ended()
+        super(PokerStarsTournamentHandHistory, self).parse()
 
 
 @attr.s(slots=True)
