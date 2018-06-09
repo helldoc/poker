@@ -146,7 +146,7 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
     _hero_re = re.compile(r"^Dealt to (?P<hero_name>.+?) \[(..) (..)\]")
     _pot_re = re.compile(r"^Total\s+pot\s+[$|€|£](?P<total_pot>\d+(?:\.\d+)?)\s+\|\s+Rake\s+[$|€|£](?P<rake>\d+(?:\.\d+)?)")
     _winner_re = re.compile(r"Seat (?P<seat>\d+): (?P<name>.+?)(?: (?P<position>\(?.*?\))(?: (?P<position2>\(?.*?\)))?)? collected \([$|€|£]?(?P<gain>[\d\.]*)\)")
-    _showdown_re = re.compile(r"^Seat (?P<seat>\d+): (?P<name>.+?) (?P<position>\(?.*?\)?)\s?showed \[(?P<cards>.+?)\] and (?P<status>.+?) (?:\([$|€|£](?P<gain>[\d\.]*)\) )?with (?P<combination>.*?)(?:, and (?P<status_second>.+?) (?:\([$|€|£](?P<gain_second>[\d\.]*)\) )?with (?P<combination_second>.*))?$")
+    _showdown_re = re.compile(r"^Seat (?P<seat>\d+): (?P<name>.+?)(?: (?P<position>\(?.*?\))(?: (?P<position2>\(?.*?\)))?)? showed \[(?P<cards>.+?)\] and (?P<status>.+?)(?: \([$|€|£]?(?P<gain>[\d\.]*)\) )?with (?P<combination>.*)(?:, and (?P<status_second>.+?) (?:\([$|€|£]?(?P<gain_second>[\d\.]*)\) )?with (?P<combination_second>.*))?$")
     _ante_re = re.compile(r".*posts the ante (\d+(?:\.\d+)?)")
     _board_re = re.compile(r"(?<=[\[ ])(..)(?=[\] ])")
     _summary_fold_re = re.compile(r"^Seat (?P<seat>\d+): (?P<name>.+?) (?P<position>\(?.*?\)?)\s?folded (?P<stage>on the (?P<street>.+)|before Flop)")
@@ -400,9 +400,9 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
 
     def _shift_seat(self, index):
         button_index = self.button_seat - 1
-        seat = (button_index + index) % self.active_players
+        seat = (button_index + index) % self.max_players
         if self.players[seat].name.startswith("Empty Seat"):
-            result = self._shift_seat(seat + 1)
+            result = self._shift_seat(index + 1)
         else:
             result = seat
             self._logger.debug("shifting seat, index %i to seat %i (%i/%i players playing)", index, result, self.active_players, self.max_players)
@@ -488,7 +488,7 @@ class PokerStarsTournamentHandHistory(PokerStarsHandHistory):
         self._parse_date(match.group("date_info"))
         self.hand_run_twice = False
         self.splitted_pot = False
-        self.tournament_ended = False
+        self.tournament_finished = False
         self.header_parsed = True
 
     def _parse_hand_info(self, line):
@@ -525,13 +525,14 @@ class PokerStarsTournamentHandHistory(PokerStarsHandHistory):
             self.currency = Currency(currency)
 
     def _parse_table_info(self, line):
-        print (line)
+        print(line)
 
     def _check_tournament_ended(self):
-        start = self._splitted.index('SUMMARY') + 1
-        for line in self._splitted[start:]:
+        start = self._splitted.index('SHOW DOWN') + 1
+        stop = self._splitted.index('SUMMARY')
+        for line in self._splitted[start: stop]:
             if "wins the tournament" in line:
-                self.tournament_ended = True
+                self.tournament_finished = True
 
     def parse(self):
         self._check_tournament_ended()

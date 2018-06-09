@@ -12,9 +12,9 @@ class PokerRoom(PokerEnum):
 
 
 class Currency(PokerEnum):
-    USD = 'USD', '$'
-    EUR = 'EUR', '€'
-    GBP = 'GBP', '£'
+    USD = '$', 'USD'
+    EUR = '€', 'EUR'
+    GBP = '£', 'GBP'
     STARS_COIN = 'SC', 'StarsCoin'
 
 
