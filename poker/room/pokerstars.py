@@ -341,6 +341,16 @@ class PokerStarsHandHistory(hh._SplittableHandHistoryMixin, hh._BaseHandHistory)
                 hand_combination = combination.to_string()
                 if status == "won":
                     is_winner = True
+            elif "collected" in line:
+                # colleced but not showed case
+                match = self._winner_re.match(line)
+                name = match.group("name")
+                is_winner = True
+                # TODO: stage is not parsing
+                stage = ""
+                seat = int(match.group("seat"))
+                action = "collected"
+
             elif "folded" in line:
                 action = "folded"
                 match = self._summary_fold_re.match(line)
@@ -528,9 +538,7 @@ class PokerStarsTournamentHandHistory(PokerStarsHandHistory):
         print(line)
 
     def _check_tournament_ended(self):
-        start = self._splitted.index('SHOW DOWN') + 1
-        stop = self._splitted.index('SUMMARY')
-        for line in self._splitted[start: stop]:
+        for line in self._splitted:
             if "wins the tournament" in line:
                 self.tournament_finished = True
 
